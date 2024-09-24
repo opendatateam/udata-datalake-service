@@ -9,7 +9,6 @@ from tests.conftest import RESOURCE_EXCEPTION_ID, RESOURCE_EXCEPTION_TABLE_INDEX
 from udata_hydra import config
 from udata_hydra.analysis.csv import analyse_csv
 from udata_hydra.db.resource import Resource
-from udata_hydra.db.resource_exception import ResourceException
 from udata_hydra.utils.db import get_columns_with_indexes
 
 pytestmark = pytest.mark.asyncio
