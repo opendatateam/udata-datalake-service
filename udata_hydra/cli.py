@@ -13,7 +13,7 @@ from minicli import cli, run, wrap
 from progressist import ProgressBar
 
 from udata_hydra import config
-from udata_hydra.analysis.csv import analyse_csv, delete_table
+from udata_hydra.analysis.csv import analyse_csv
 from udata_hydra.crawl.check_resources import check_resource as crawl_check_resource
 from udata_hydra.db.resource import Resource
 from udata_hydra.logger import setup_logging
@@ -270,7 +270,7 @@ async def purge_checks(retention_days: int = 60, quiet: bool = False) -> None:
 
 
 @cli
-async def purge_csv_tables(quiet: bool = False):
+async def purge_csv_tables(quiet: bool = False) -> None:
     """Delete converted CSV tables for resources url no longer in catalog"""
     # TODO: check if we should use parsing_table from table_index?
     # And are they necessarily in sync?
@@ -291,17 +291,79 @@ async def purge_csv_tables(quiet: bool = False):
     WHERE checks.parsing_table IS NOT NULL AND (c.id IS NULL OR c.deleted = TRUE);
     """
     conn = await connection()
-    tables_to_delete = await conn.fetch(q)
-    tables_to_delete = [table["parsing_table"] for table in tables_to_delete]
+    res: list[Record] = await conn.fetch(q)
+    tables_to_delete: list[str] = [r["parsing_table"] for r in res]
+
+    success_count = 0
+    error_count = 0
 
     for table in tables_to_delete:
-        log.debug(f"Deleting table {table}")
-        await delete_table(table)
-        await conn.execute("UPDATE checks SET parsing_table = NULL WHERE parsing_table = $1", table)
-    if len(tables_to_delete):
-        log.info(f"Deleted {len(tables_to_delete)} table(s).")
-    else:
+        try:
+            async with conn.transaction():
+                log.debug(f'Deleting table "{table}"')
+                await conn.execute(f'DROP TABLE IF EXISTS "{table}"')
+                await conn.execute("DELETE FROM tables_index WHERE parsing_table = $1", table)
+                await conn.execute(
+                    "UPDATE checks SET parsing_table = NULL WHERE parsing_table = $1", table
+                )
+                success_count += 1
+        except Exception as e:
+            error_count += 1
+            log.error(f'Failed to delete table "{table}": {str(e)}')
+            continue
+
+    if success_count:
+        log.info(f"Successfully deleted {success_count} table(s).")
+    if error_count:
+        log.warning(f"Failed to delete {error_count} table(s). Check logs for details.")
+    if not (success_count or error_count):
         log.info("Nothing to delete.")
+
+
+@cli
+async def insert_resource_into_catalog(resource_id: str = "default"):
+    """Insert a resource into the catalog
+    Useful for local tests, instead of having to resync the whole catalog for one new resource
+
+    :resource_id: id of the resource to insert
+    """
+    resource: asyncpg.Record | None = await Resource.get(resource_id)
+    action = "insert"
+    if resource:
+        logging.warning("Resource already exists in catalog, updating...")
+        action = "updat"
+    url = f"https://www.data.gouv.fr/api/2/datasets/resources/{resource_id}/"
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as resp:
+            resp.raise_for_status()
+            resource = await resp.json()
+    try:
+        conn = await connection()
+        await conn.execute(
+            """
+            INSERT INTO catalog (
+                dataset_id, resource_id, url, harvest_modified_at,
+                deleted, priority, status
+            )
+            VALUES ($1, $2, $3, $4, FALSE, FALSE, NULL)
+            ON CONFLICT (resource_id) DO UPDATE SET
+                dataset_id = $1,
+                url = $3,
+                deleted = FALSE;
+        """,
+            resource["dataset_id"],
+            resource["resource"]["id"],
+            resource["resource"]["url"],
+            # force timezone info to UTC (catalog data should be in UTC)
+            datetime.fromisoformat(resource["resource"]["harvest"]["modified_at"]).replace(
+                tzinfo=timezone.utc
+            )
+            if resource["resource"].get("harvest")
+            else None,
+        )
+        log.info(f"Resource {resource_id} successfully {action}ed into DB.")
+    except Exception as e:
+        raise e
 
 
 @wrap

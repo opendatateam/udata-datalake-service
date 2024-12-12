@@ -16,6 +16,7 @@ class CheckSchema(Schema):
     error = fields.Str()
     dataset_id = fields.Str()
     resource_id = fields.UUID()
+    next_check_at = fields.DateTime()
     deleted = fields.Boolean()
     parsing_started_at = fields.DateTime()
     parsing_finished_at = fields.DateTime()

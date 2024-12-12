@@ -38,14 +38,16 @@ BACKOFF_NB_REQ = 180
 BACKOFF_PERIOD = 360    # in seconds
 COOL_OFF_PERIOD = 86400 # 1 day to cool off when we've messed up
 
-
-# crawl batch size, beware of open file limits
+# check batch size, beware of open file limits
 # ⚠️ do not exceed MAX_POOL_SIZE
 BATCH_SIZE = 40
-# crawl url if last check is older than
-SINCE = "1w"
+
+# check resource if last check is older than
+CHECK_DELAYS = [12, 24, 168, 720] # in hours (1/2, 1, 7, 30 days)
+
 # seconds to wait for between batches
 SLEEP_BETWEEN_BATCHES = 60
+
 # max download filesize in bytes (100 MB)
 MAX_FILESIZE_ALLOWED.csv = 104857600
 MAX_FILESIZE_ALLOWED.csvgz = 104857600

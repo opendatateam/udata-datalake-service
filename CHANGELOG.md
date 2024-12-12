@@ -7,6 +7,12 @@
 - More explicit error reporting when sending to udata without raising errors for udata responding with a 404 [#213](https://github.com/datagouv/hydra/pull/213)
 - Minor cleaning: remove unused arg in function [#219](https://github.com/datagouv/hydra/pull/219)
 - Fix type issue regarding `resource_id` [#220](https://github.com/datagouv/hydra/pull/220)
+- Use bump'X [#226](https://github.com/datagouv/hydra/pull/226)
+- Get actual resource URL in case of 404 (change since last catalog load) [#225](https://github.com/datagouv/hydra/pull/225)
+- Add CLI util to insert or update a resource into the catalog (change since last catalog load) [#228](https://github.com/datagouv/hydra/pull/228)
+- Fix deadlocks errors when purging CSV tables by refactoring `purge_csv_tables` to use atomic transactions [#230](https://github.com/datagouv/hydra/pull/230)
+- Improve timing of checks depending on changes since last check [#163](https://github.com/datagouv/hydra/pull/163)
+
 
 ## 2.0.5 (2024-11-08)
 

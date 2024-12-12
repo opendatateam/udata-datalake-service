@@ -60,6 +60,7 @@ async def test_get_latest_check(setup_catalog, client, query, fake_check, fake_r
         "url": url,
         "headers": {"x-do": "you"},
         "timeout": False,
+        "next_check_at": None,
         "dataset_id": DATASET_ID,
         "status": 200,
         "parsing_error": None,

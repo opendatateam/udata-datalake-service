@@ -1,7 +1,6 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from aiohttp import web
-from humanfriendly import parse_timespan
 
 from udata_hydra import config, context
 from udata_hydra.db.resource import Resource
@@ -9,35 +8,39 @@ from udata_hydra.worker import QUEUES
 
 
 async def get_crawler_status(request: web.Request) -> web.Response:
+    # Count resources with no check and resources with a check
     q = f"""
         SELECT
-            SUM(CASE WHEN last_check IS NULL THEN 1 ELSE 0 END) AS count_left,
+            SUM(CASE WHEN last_check IS NULL THEN 1 ELSE 0 END) AS count_never_checked,
             SUM(CASE WHEN last_check IS NOT NULL THEN 1 ELSE 0 END) AS count_checked
         FROM catalog
         WHERE {Resource.get_excluded_clause()}
         AND catalog.deleted = False
     """
-    stats_catalog = await request.app["pool"].fetchrow(q)
+    stats_resources: dict = await request.app["pool"].fetchrow(q)
 
-    since_seconds: float = parse_timespan(config.SINCE)
-    since: datetime = datetime.now(timezone.utc) - timedelta(seconds=since_seconds)
+    now = datetime.now(timezone.utc)
     q = f"""
         SELECT
-            SUM(CASE WHEN checks.created_at <= $1 THEN 1 ELSE 0 END) AS count_outdated
-            --, SUM(CASE WHEN checks.created_at > $1 THEN 1 ELSE 0 END) AS count_fresh
+            SUM(CASE WHEN checks.next_check_at <= $1 THEN 1 ELSE 0 END) AS count_outdated
+            --, SUM(CASE WHEN checks.next_check_at > $1 THEN 1 ELSE 0 END) AS count_fresh
         FROM catalog, checks
         WHERE {Resource.get_excluded_clause()}
         AND catalog.last_check = checks.id
         AND catalog.deleted = False
     """
-    stats_checks = await request.app["pool"].fetchrow(q, since)
+    stats_checks: dict = await request.app["pool"].fetchrow(q, now)
 
-    count_left = stats_catalog["count_left"] + (stats_checks["count_outdated"] or 0)
+    count_pending_checks: int = stats_resources["count_never_checked"] + (
+        stats_checks["count_outdated"] or 0
+    )
     # all w/ a check, minus those with an outdated checked
-    count_checked = stats_catalog["count_checked"] - (stats_checks["count_outdated"] or 0)
-    total = stats_catalog["count_left"] + stats_catalog["count_checked"]
-    rate_checked = round(stats_catalog["count_checked"] / total * 100, 1)
-    rate_checked_fresh = round(count_checked / total * 100, 1)
+    count_fresh_checks: int = stats_resources["count_checked"] - (
+        stats_checks["count_outdated"] or 0
+    )
+    total: int = stats_resources["count_never_checked"] + stats_resources["count_checked"]
+    rate_checked: float = round(stats_resources["count_checked"] / total * 100, 1)
+    rate_checked_fresh: float = round(count_fresh_checks / total * 100, 1)
 
     async def get_resources_status_counts(request: web.Request) -> dict[str | None, int]:
         status_counts: dict = {status: 0 for status in Resource.STATUSES}
@@ -59,8 +62,8 @@ async def get_crawler_status(request: web.Request) -> web.Response:
     return web.json_response(
         {
             "total": total,
-            "pending_checks": count_left,
-            "fresh_checks": count_checked,
+            "pending_checks": count_pending_checks,
+            "fresh_checks": count_fresh_checks,
             "checks_percentage": rate_checked,
             "fresh_checks_percentage": rate_checked_fresh,
             "resources_statuses_count": await get_resources_status_counts(request),

@@ -32,12 +32,19 @@ from str2float import str2float
 
 from udata_hydra import config, context
 from udata_hydra.analysis import helpers
-from udata_hydra.analysis.errors import ParseException, handle_parse_exception
 from udata_hydra.db import compute_insert_query
 from udata_hydra.db.check import Check
 from udata_hydra.db.resource import Resource
 from udata_hydra.db.resource_exception import ResourceException
-from udata_hydra.utils import Reader, Timer, download_resource, queue, send
+from udata_hydra.utils import (
+    ParseException,
+    Reader,
+    Timer,
+    download_resource,
+    handle_parse_exception,
+    queue,
+    send,
+)
 from udata_hydra.utils.minio import MinIOClient
 from udata_hydra.utils.parquet import save_as_parquet
 
@@ -419,6 +426,8 @@ async def csv_to_db_index(table_name: str, inspection: dict, check: Record) -> N
 
 
 async def delete_table(table_name: str) -> None:
-    db = await context.pool("csv")
-    await db.execute(f'DROP TABLE IF EXISTS "{table_name}"')
-    await db.execute("DELETE FROM tables_index WHERE parsing_table = $1", table_name)
+    pool = await context.pool("csv")
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await conn.execute(f'DROP TABLE IF EXISTS "{table_name}"')
+            await conn.execute("DELETE FROM tables_index WHERE parsing_table = $1", table_name)

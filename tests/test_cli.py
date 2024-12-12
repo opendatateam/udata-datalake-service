@@ -1,4 +1,3 @@
-import hashlib
 from datetime import datetime, timedelta
 
 import nest_asyncio
@@ -6,6 +5,7 @@ import pytest
 from minicli import run
 
 from tests.conftest import RESOURCE_ID, RESOURCE_URL
+from udata_hydra.db.resource import Resource
 
 pytestmark = pytest.mark.asyncio
 nest_asyncio.apply()
@@ -145,3 +145,23 @@ async def test_load_catalog_url_has_changed(setup_catalog, rmock, db, catalog_co
     assert len(res) == 1
     assert res[0]["url"] == "https://example.com/resource-0"
     assert res[0]["deleted"] is False
+
+
+async def test_insert_resource_in_catalog(rmock):
+    new_dataset_id = "a" * 24
+    new_resource_url = "https://new-url.xyz"
+    rmock.get(
+        f"https://www.data.gouv.fr/api/2/datasets/resources/{RESOURCE_ID}/",
+        status=200,
+        payload={
+            "dataset_id": new_dataset_id,
+            "resource": {
+                "id": RESOURCE_ID,
+                "url": new_resource_url,
+            },
+        },
+    )
+    run("insert_resource_into_catalog", resource_id=RESOURCE_ID)
+    resource = await Resource.get(RESOURCE_ID)
+    assert resource["dataset_id"] == new_dataset_id
+    assert resource["url"] == new_resource_url

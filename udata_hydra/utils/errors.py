@@ -10,14 +10,14 @@ from udata_hydra.db.check import Check
 log = logging.getLogger("udata-hydra")
 
 
-class ParseException(Exception):
+class ExceptionWithSentryDetails(Exception):
     """
-    Exception raised when an error occurs during parsing.
-    Enriches Sentry with tags if available.
+    Custom exception which enriches Sentry with tags if available.
     """
 
     def __init__(
         self,
+        message: str | None = None,
         step: str | None = None,
         resource_id: str | None = None,
         url: str | None = None,
@@ -25,20 +25,33 @@ class ParseException(Exception):
         table_name: str | None = None,
         *args,
     ) -> None:
-        if step:
-            self.step = step
-        if config.SENTRY_DSN:
+        self.step = step
+        self.message = message
+        if sentry_sdk.Hub.current.client:
             with sentry_sdk.new_scope() as scope:
                 # scope.set_level("warning")
                 scope.set_tags(
                     {
                         "resource_id": resource_id or "unknown",
-                        "csv_url": url or "unknown",
+                        "url": url or "unknown",
                         "check_id": check_id or "unknown",
                         "table_name": table_name or "unknown",
                     }
                 )
-        super().__init__(*args)
+                sentry_sdk.capture_exception(self)
+        super().__init__(message, *args)
+
+
+class ParseException(ExceptionWithSentryDetails):
+    """Exception raised when an error occurs during parsing."""
+
+    pass
+
+
+class IOException(ExceptionWithSentryDetails):
+    """Exception raised when an error occurs during IO operations."""
+
+    pass
 
 
 async def handle_parse_exception(e: ParseException, table_name: str, check: Record | None) -> None:

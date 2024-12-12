@@ -10,6 +10,7 @@ from dateparser import parse as date_parser
 
 from udata_hydra import config, context
 from udata_hydra.analysis.csv import analyse_csv
+from udata_hydra.crawl.calculate_next_check import calculate_next_check_date
 from udata_hydra.db.check import Check
 from udata_hydra.db.resource import Resource
 from udata_hydra.db.resource_exception import ResourceException
@@ -32,7 +33,7 @@ log = logging.getLogger("udata-hydra")
 
 
 async def analyse_resource(
-    check_id: int, is_first_check: bool, force_analysis: bool = False
+    check_id: int, last_check: dict | None, force_analysis: bool = False
 ) -> None:
     """
     Perform analysis on the resource designated by check_id:
@@ -105,11 +106,13 @@ async def analyse_resource(
             )
 
     if change_status == Change.HAS_CHANGED:
-        await store_last_modified_date(change_payload or {}, check_id)
+        await update_check_with_modification_and_next_dates(
+            change_payload or {}, check_id, last_check
+        )
 
     analysis_results = {**dl_analysis, **(change_payload or {})}
 
-    if change_status == Change.HAS_CHANGED or is_first_check or force_analysis:
+    if change_status == Change.HAS_CHANGED or not last_check or force_analysis:
         if is_tabular and tmp_file:
             # Change status to TO_ANALYSE_CSV
             await Resource.update(resource_id, data={"status": "TO_ANALYSE_CSV"})
@@ -132,14 +135,26 @@ async def analyse_resource(
         await Resource.update(resource_id, data={"status": None})
 
 
-async def store_last_modified_date(change_analysis: dict, check_id: int) -> None:
+async def update_check_with_modification_and_next_dates(
+    change_analysis: dict, check_id: int, last_check: dict | None
+) -> None:
+    """Update check with last_modified date and next_check date if resource has changed
+
+    Args:
+        change_analysis: dict with optional "analysis:last-modified-at" key
+        check_id: the ID of the current check
+        last_check: the last check data, if any
     """
-    Store last modified date in checks because it may be useful for later comparison
-    """
-    last_modified = change_analysis.get("analysis:last-modified-at")
+    last_modified: str | None = change_analysis.get("analysis:last-modified-at")
     if last_modified:
-        last_modified = datetime.fromisoformat(last_modified)
-        await Check.update(check_id, {"detected_last_modified_at": last_modified})
+        last_modified_at: datetime = datetime.fromisoformat(last_modified)
+        next_check_at: datetime = calculate_next_check_date(
+            has_check_changed=True, last_check=last_check, last_modified_at=last_modified_at
+        )
+        await Check.update(
+            check_id,
+            {"detected_last_modified_at": last_modified_at, "next_check_at": next_check_at},
+        )
 
 
 async def detect_resource_change_from_checksum(

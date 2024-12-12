@@ -47,7 +47,7 @@ It will crawl (forever) the catalog according to the config set in `config.toml`
 
 `BATCH_SIZE` URLs are queued at each loop run.
 
-The crawler will start with URLs never checked and then proceed with URLs crawled before `SINCE` interval. It will then wait until something changes (catalog or time).
+The crawler will start with URLs never checked and then proceed with URLs crawled before `CHECK_DELAYS` interval. It will then wait until something changes (catalog or time).
 
 There's a by-domain backoff mecanism. The crawler will wait when, for a given domain in a given batch, `BACKOFF_NB_REQ` is exceeded in a period of `BACKOFF_PERIOD` seconds. It will retry until the backoff is lifted.
 
@@ -119,7 +119,7 @@ The API serves the following endpoints:
 - `GET` on `/api/checks/aggregate?group_by={column}&created_at={date}` to get checks occurences grouped by a `column` for a specific `date`
 
 *Related to resources:*
-- `GET` on `/api/resource/{resource_id}` to get a resource in the DB "catalog" table from its `resource_id`
+- `GET` on `/api/resources/{resource_id}` to get a resource in the DB "catalog" table from its `resource_id`
 - `POST` on `/api/resources` to receive a resource creation event from a source. It will create a new resource in the DB "catalog" table and mark it as priority for next crawling
 - `PUT` on `/api/resources/{resource_id}` to update a resource in the DB "catalog" table
 - `DELETE` on `/api/resources/{resource_id}` to delete a resource in the DB "catalog" table
@@ -127,7 +127,7 @@ The API serves the following endpoints:
 > :warning: **Warning: the following routes are deprecated and need be removed in the future:**
 > - `POST` on `/api/resource/created` -> use `POST` on `/api/resources/` instead
 > - `POST` on `/api/resource/updated` -> use `PUT` on `/api/resources/` instead
-> - `POST` on `/api/resource/deleted` -> use `DELET`E on `/api/resources/` instead
+> - `POST` on `/api/resource/deleted` -> use `DELETE` on `/api/resources/` instead
 
 *Related to resources exceptions:*
 - `GET` on `/api/resources-exceptions` to get the list all resources exceptions
@@ -141,6 +141,7 @@ The API serves the following endpoints:
 - `GET` on `/api/stats` to get the crawling stats
 - `GET` on `/api/health` to get the API version number and environment
 
+You may want to you a helper such as [Bruno](https://www.usebruno.com/) to handle API calls, in which case all the endpoints are ready to use [here](https://github.com/datagouv/api-calls).
 More details about some enpoints are provided below with examples, but not for all of them:
 
 #### Get latest check
@@ -470,3 +471,7 @@ If you cannot use pre-commit, it is necessary to format, lint, and sort imports 
 ruff check --fix .
 ruff format .
 ```
+
+### Releases
+
+The release process uses [bump'X](https://github.com/datagouv/bumpx).

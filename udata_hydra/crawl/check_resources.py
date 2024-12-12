@@ -8,14 +8,13 @@ import aiohttp
 from asyncpg import Record
 
 from udata_hydra import config, context
-from udata_hydra.analysis.resource import analyse_resource
 from udata_hydra.crawl.helpers import (
     convert_headers,
     fix_surrogates,
     has_nice_head,
     is_domain_backoff,
 )
-from udata_hydra.crawl.process_check_data import process_check_data
+from udata_hydra.crawl.preprocess_check_data import preprocess_check_data
 from udata_hydra.db.resource import Resource
 from udata_hydra.utils import queue
 
@@ -65,6 +64,9 @@ async def check_resource(
 ) -> str:
     log.debug(f"check {url}, sleep {sleep}, method {method}")
 
+    # Import here to avoid circular import issues
+    from udata_hydra.analysis.resource import analyse_resource
+
     # Update resource status to CRAWLING_URL
     await Resource.update(resource_id, data={"status": "CRAWLING_URL"})
 
@@ -77,7 +79,7 @@ async def check_resource(
     if not domain:
         log.warning(f"[warning] not netloc in url, skipping {url}")
         # Process the check data. If it has changed, it will be sent to udata
-        await process_check_data(
+        await preprocess_check_data(
             {
                 "resource_id": resource_id,
                 "url": url,
@@ -111,8 +113,8 @@ async def check_resource(
                 )
             resp.raise_for_status()
 
-            # Process the check data. If it has changed, it will be sent to udata
-            check, is_first_check = await process_check_data(
+            # Preprocess the check data. If it has changed, it will be sent to udata
+            new_check, last_check = await preprocess_check_data(
                 {
                     "resource_id": resource_id,
                     "url": url,
@@ -130,8 +132,8 @@ async def check_resource(
             # Enqueue the resource for analysis
             queue.enqueue(
                 analyse_resource,
-                check["id"],
-                is_first_check,
+                new_check["id"],
+                last_check,
                 force_analysis,
                 _priority=worker_priority,
             )
@@ -140,7 +142,7 @@ async def check_resource(
 
     except asyncio.exceptions.TimeoutError:
         # Process the check data. If it has changed, it will be sent to udata
-        await process_check_data(
+        await preprocess_check_data(
             {
                 "resource_id": resource_id,
                 "url": url,
@@ -164,9 +166,22 @@ async def check_resource(
         AssertionError,
         UnicodeError,
     ) as e:
+        # if we get a 404, it might be that the resource's URL has changed since last catalog load
+        # we compare the actual URL to the one we have here to handle these cases
+        if getattr(e, "status", None) == 404 and config.UDATA_URI:
+            handled = await handle_wrong_resource_url(
+                resource_id=resource_id,
+                session=session,
+                url=url,
+                force_analysis=force_analysis,
+                worker_priority=worker_priority,
+            )
+            if handled is not None:
+                return handled
+
         error = getattr(e, "message", None) or str(e)
         # Process the check data. If it has changed, it will be sent to udata
-        await process_check_data(
+        await preprocess_check_data(
             {
                 "resource_id": resource_id,
                 "url": url,
@@ -184,3 +199,27 @@ async def check_resource(
         await Resource.update(resource_id=resource_id, data={"status": None})
 
         return RESOURCE_RESPONSE_STATUSES["ERROR"]
+
+
+async def handle_wrong_resource_url(
+    resource_id: str,
+    session,
+    url: str,
+    force_analysis: bool,
+    worker_priority: str,
+):
+    stable_resource_url = f"{config.UDATA_URI.replace('api/2', 'fr')}/datasets/r/{resource_id}"
+    async with session.head(stable_resource_url) as resp:
+        resp.raise_for_status()
+        actual_url = resp.headers.get("location")
+    if actual_url and url != actual_url:
+        await Resource.update(resource_id=resource_id, data={"url": actual_url})
+        return await check_resource(
+            actual_url,
+            resource_id,
+            session,
+            force_analysis=force_analysis,
+            method="head",
+            worker_priority=worker_priority,
+        )
+    return

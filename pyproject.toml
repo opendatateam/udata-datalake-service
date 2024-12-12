@@ -33,7 +33,7 @@ str2bool = "^1.1"
 [tool.poetry.group.dev.dependencies]
 aiohttp-devtools = "^1.0.post0"
 aioresponses = "^0.7.3"
-bumpr = "^0.3.8"
+bumpx = "^0.3.10"
 gunicorn = "^20.1.0"
 mypy = "^1.11.0"
 nest_asyncio = "^1.5.5"

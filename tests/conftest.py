@@ -159,7 +159,7 @@ async def setup_catalog_with_resource_exception(setup_catalog):
 
 @pytest.fixture
 def produce_mock(mocker):
-    mocker.patch("udata_hydra.crawl.process_check_data.send", dummy())
+    mocker.patch("udata_hydra.crawl.preprocess_check_data.send", dummy())
     mocker.patch("udata_hydra.analysis.resource.send", dummy())
     mocker.patch("udata_hydra.analysis.csv.send", dummy())
 
@@ -168,7 +168,7 @@ def produce_mock(mocker):
 def analysis_mock(mocker):
     """Disable analyse_resource while crawling"""
     mocker.patch(
-        "udata_hydra.crawl.check_resources.analyse_resource",
+        "udata_hydra.analysis.resource.analyse_resource",
         dummy({"error": None, "checksum": None, "filesize": None, "mime_type": None}),
     )
 
@@ -218,6 +218,7 @@ async def fake_check():
         checksum=None,
         resource_id=RESOURCE_ID,
         detected_last_modified_at=None,
+        next_check_at=None,
         parsing_table=False,
         parquet_url=False,
         domain="example.com",
@@ -234,6 +235,7 @@ async def fake_check():
             "error": error,
             "checksum": checksum,
             "detected_last_modified_at": detected_last_modified_at,
+            "next_check_at": next_check_at,
             "parsing_table": hashlib.md5(url.encode("utf-8")).hexdigest()
             if parsing_table
             else None,

@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 
 import nest_asyncio
 import pytest
-from aiohttp import RequestInfo
+from aiohttp import ClientSession, RequestInfo
 from aiohttp.client_exceptions import ClientError, ClientResponseError
 from aioresponses import CallbackResult
 from asyncpg import Record
@@ -18,7 +18,8 @@ from tests.conftest import RESOURCE_ID, RESOURCE_URL
 from udata_hydra import config
 from udata_hydra.analysis.resource import analyse_resource
 from udata_hydra.crawl import start_checks
-from udata_hydra.crawl.process_check_data import get_content_type_from_header
+from udata_hydra.crawl.check_resources import check_resource
+from udata_hydra.crawl.preprocess_check_data import get_content_type_from_header
 from udata_hydra.db.check import Check
 from udata_hydra.db.resource import Resource
 
@@ -126,29 +127,46 @@ async def test_excluded_clause(setup_catalog, mocker, event_loop, rmock, produce
     assert ("GET", URL(rurl)) not in rmock.requests
 
 
-async def test_outdated_check(setup_catalog, rmock, fake_check, event_loop, produce_mock):
-    await fake_check(created_at=datetime.now() - timedelta(weeks=52))
-    rurl = RESOURCE_URL
-    rmock.head(rurl, status=200)
-    event_loop.run_until_complete(start_checks(iterations=1))
-    # url has been called because check is outdated
-    assert ("HEAD", URL(rurl)) in rmock.requests
-
-
-async def test_not_outdated_check(
-    setup_catalog, rmock, fake_check, event_loop, mocker, produce_mock
+@pytest.mark.parametrize(
+    "last_check_params",
+    [
+        # last_check, next_check_at, new_check_expected
+        (False, None, True),
+        (True, None, True),
+        (True, datetime.now() - timedelta(hours=1), True),
+        (True, datetime.now() + timedelta(hours=1), False),
+    ],
+)
+async def test_next_check(
+    setup_catalog, db, rmock, fake_check, event_loop, produce_mock, last_check_params
 ):
-    mocker.patch("udata_hydra.config.SLEEP_BETWEEN_BATCHES", 0)
-    await fake_check()
+    last_check, next_check_at, new_check_expected = last_check_params
+    if last_check:
+        await fake_check(
+            created_at=datetime.now() - timedelta(hours=24), next_check_at=next_check_at
+        )
     rurl = RESOURCE_URL
     rmock.get(rurl, status=200)
     event_loop.run_until_complete(start_checks(iterations=1))
-    # url has not been called because check is fresh
-    assert ("GET", URL(rurl)) not in rmock.requests
+    checks: list[Record] = await db.fetch(
+        f"SELECT * FROM checks WHERE url = '{rurl}' ORDER BY created_at DESC"
+    )
+    if new_check_expected:
+        assert ("HEAD", URL(rurl)) in rmock.requests
+        assert len(checks) == [1, 2][last_check]
+        assert checks[0]["url"] == rurl
+        # assert the next check datetime is very close to what's expected, let's say by 10 seconds
+        assert (
+            checks[0]["next_check_at"]
+            - (datetime.now(timezone.utc) + timedelta(hours=config.CHECK_DELAYS[0]))
+        ).total_seconds() < 10
+    else:
+        assert ("HEAD", URL(rurl)) not in rmock.requests
+        assert len(checks) == [0, 1][last_check]
 
 
 async def test_deleted_check(setup_catalog, rmock, fake_check, event_loop, produce_mock):
-    check = await fake_check(created_at=datetime.now() - timedelta(weeks=52))
+    check = await fake_check(created_at=datetime.now() - timedelta(hours=24))
     # associate check with a resource
     await Resource.update(resource_id=RESOURCE_ID, data={"last_check": check["id"]})
     # delete check
@@ -198,7 +216,7 @@ async def test_analyse_resource(setup_catalog, mocker, fake_check):
     mocker.patch("udata_hydra.config.WEBHOOK_ENABLED", False)
 
     check = await fake_check()
-    await analyse_resource(check["id"], False)
+    await analyse_resource(check_id=check["id"], last_check=None)
     result: Record | None = await Check.get_by_id(check["id"])
 
     assert result["error"] is None
@@ -212,7 +230,7 @@ async def test_analyse_resource_send_udata(setup_catalog, mocker, rmock, fake_ch
     rmock.put(udata_url, status=200, repeat=True)
 
     check = await fake_check()
-    await analyse_resource(check["id"], True)
+    await analyse_resource(check_id=check["id"], last_check=None)
 
     req = rmock.requests[("PUT", URL(udata_url))]
     assert len(req) == 1
@@ -228,9 +246,11 @@ async def test_analyse_resource_send_udata_no_change(
     rmock.put(udata_url, status=200, repeat=True)
 
     # previous check with same checksum
-    await fake_check(checksum=hashlib.sha1(SIMPLE_CSV_CONTENT.encode("utf-8")).hexdigest())
+    last_check = await fake_check(
+        checksum=hashlib.sha1(SIMPLE_CSV_CONTENT.encode("utf-8")).hexdigest()
+    )
     check = await fake_check()
-    await analyse_resource(check["id"], False)
+    await analyse_resource(check_id=check["id"], last_check=last_check)
 
     # udata has not been called
     assert ("PUT", URL(udata_url)) not in rmock.requests
@@ -630,3 +650,57 @@ async def test_dont_check_resources_with_status(
             "SELECT status FROM catalog WHERE resource_id = $1", RESOURCE_ID
         )
         assert resource["status"] == resource_status
+
+
+@pytest.mark.parametrize(
+    "url_changed",
+    [
+        True,
+        False,
+    ],
+)
+async def test_wrong_url_in_catalog(
+    setup_catalog, rmock, produce_mock, url_changed, catalog_content
+):
+    r = await Resource.get(resource_id=RESOURCE_ID, column_name="url")
+    not_found_url = r["url"]
+    new_url = "https://example.com/has-been-modified-lately"
+    rmock.head(
+        not_found_url,
+        status=404,
+    )
+    rmock.get(
+        not_found_url,
+        status=404,
+    )
+    rmock.head(
+        f"{config.UDATA_URI.replace('api/2', 'fr')}/datasets/r/{RESOURCE_ID}",
+        status=200,
+        headers={
+            "location": new_url if url_changed else not_found_url,
+        },
+    )
+    if url_changed:
+        rmock.head(
+            new_url,
+            status=200,
+            headers={
+                "last-modified": "Thu, 09 Jan 2020 09:33:37 GMT",
+                "content-type": "application/csv",
+            },
+        )
+        rmock.get(
+            new_url,
+            status=200,
+            body=catalog_content,
+        )
+    async with ClientSession() as session:
+        await check_resource(url=not_found_url, resource_id=RESOURCE_ID, session=session)
+    if url_changed:
+        r = await Resource.get(resource_id=RESOURCE_ID, column_name="url")
+        assert r["url"] == new_url
+        check = await Check.get_by_resource_id(RESOURCE_ID)
+        assert check.get("parsing_finished_at")
+    else:
+        check = await Check.get_by_resource_id(RESOURCE_ID)
+        assert check["status"] == 404

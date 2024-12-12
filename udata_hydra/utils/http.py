@@ -6,6 +6,7 @@ import aiohttp
 from aiohttp import web
 
 from udata_hydra import config
+from udata_hydra.utils import IOException
 
 log = logging.getLogger("udata-hydra")
 
@@ -51,8 +52,10 @@ async def send(dataset_id: str, resource_id: str, document: dict) -> None:
             if resp.status == 404:
                 pass
             elif resp.status == 410:
-                raise IOError("Resource has been deleted on udata")
+                raise IOException(
+                    "Resource has been deleted on udata", resource_id=resource_id, url=uri
+                )
             if resp.status == 502:
-                raise IOError("Udata is unreachable")
+                raise IOException("Udata is unreachable", resource_id=resource_id, url=uri)
             else:
                 resp.raise_for_status()
