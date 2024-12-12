@@ -4,7 +4,7 @@ version: 2.1
 parameters:
   python-version:
     type: string
-    default: "3.11.10"
+    default: "3.11.2"
   python-module:
     type: string
     default: "udata_hydra"
