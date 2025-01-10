@@ -63,6 +63,12 @@ module = [
 ]
 ignore_missing_imports = true
 
+
+[tool.poetry.scripts]
+udata-hydra = "udata_hydra.cli:run"
+udata-hydra-crawl = "udata_hydra.crawl:run"
+udata-hydra-app = "udata_hydra.app:run"
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 markers = [
@@ -77,10 +83,6 @@ lint = { extend-select = ["I"] }
 # ["I"] is to also sort imports with an isort rule
 line-length = 100
 
-[tool.setuptools.dynamic]
-dependencies = { file = ["requirements.txt"] }
-optional-dependencies.test = { file = ["requirements-dev.txt"] }
-
 [build-system]
-requires = ["setuptools", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["poetry-core>=2.0.0"]
+build-backend = "poetry.core.masonry.api"
