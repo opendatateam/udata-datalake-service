@@ -430,20 +430,17 @@ urllib3 = {version = ">=1.25.4,<2.2.0 || >2.2.0,<3", markers = "python_version >
 crt = ["awscrt (==0.21.2)"]
 
 [[package]]
-name = "bumpr"
-version = "0.3.8"
+name = "bumpx"
+version = "0.3.10"
 description = "Version bumper and Python package releaser"
 optional = true
-python-versions = ">=3.7,<4.0"
+python-versions = "<4.0,>=3.9"
 groups = ["main"]
 markers = "(python_version == \"3.11\" or python_version >= \"3.12\") and extra == \"dev\""
 files = [
-    {file = "bumpr-0.3.8-py3-none-any.whl", hash = "sha256:1cdfe40b618d97ee3af07f74b3983c0bc5c68a369cc317995259e241438b93a6"},
-    {file = "bumpr-0.3.8.tar.gz", hash = "sha256:6bfdda629f7816012c0e3dcaca54b6228e25b2159956049639b329389f0348ad"},
+    {file = "bumpx-0.3.10-py3-none-any.whl", hash = "sha256:90fa97d8f19b6c3db77f453bbcb649d519303a45165fc8b623a96e182d3a8336"},
+    {file = "bumpx-0.3.10.tar.gz", hash = "sha256:3139185d3b9c7ae6cd45edb9a51e18b6f2673c69137508fb0230353f99c0dae6"},
 ]
-
-[package.extras]
-doc = ["mkdocs (>=1.2.3,<2.0.0)", "mkdocs-include-markdown-plugin (>=3.2.3,<4.0.0)", "mkdocs-material (>=7.3.5,<8.0.0)", "mkdocstrings (>=0.16.2,<0.17.0)"]
 
 [[package]]
 name = "certifi"
@@ -776,14 +773,14 @@ toml = ["tomli"]
 
 [[package]]
 name = "csv-detective"
-version = "0.7.2"
+version = "0.7.3"
 description = "Detect CSV column content"
 optional = false
 python-versions = "*"
 groups = ["main"]
 markers = "python_version == \"3.11\" or python_version >= \"3.12\""
 files = [
-    {file = "csv_detective-0.7.2-py3-none-any.whl", hash = "sha256:5d8165a7eae2759da8c92c8df82080d91e638b707d757ac0cfff2bc9ca05cb42"},
+    {file = "csv_detective-0.7.3-py3-none-any.whl", hash = "sha256:2d3adaf83d9068d084ec201b94ecf3cd84c2589a26c4edcc90af9624f7484d0a"},
 ]
 
 [package.dependencies]
@@ -2832,9 +2829,9 @@ idna = ">=2.0"
 multidict = ">=4.0"
 
 [extras]
-dev = ["aiohttp-devtools", "aioresponses", "bumpr", "gunicorn", "mypy", "nest_asyncio", "pytest", "pytest-asyncio", "pytest-cov", "pytest-mock", "ruff"]
+dev = ["aiohttp-devtools", "aioresponses", "bumpx", "gunicorn", "mypy", "nest_asyncio", "pytest", "pytest-asyncio", "pytest-cov", "pytest-mock", "ruff"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.13"
-content-hash = "5c16434e967c453bfd2a034abaa593de8f212c10cbf255b9115a695c9905406f"
+content-hash = "24cbb832eb2af4bffdadcf4751ca7896e95243ffe9db19700fe07d05a3f62058"
