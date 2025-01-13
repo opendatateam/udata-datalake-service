@@ -34,9 +34,9 @@ jobs:
             - << pipeline.parameters.cache-prefix >>-{{ arch }}-{{ .Environment.BASE_BRANCH }}
             - << pipeline.parameters.cache-prefix >>-{{ arch }}-
       - run:
-          name: Install Poetry
+          name: Install Poetry 2.0.x
           command: |
-            curl -sSL https://install.python-poetry.org | python3 -
+            curl -sSL https://install.python-poetry.org | POETRY_VERSION='~2.0.0' python3 -
       - run:
           name: Install python dependencies
           command: |
