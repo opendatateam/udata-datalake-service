@@ -17,7 +17,7 @@
 - Add indexes to improve resource filtering and batch selection [#240](https://github.com/datagouv/hydra/pull/240)
 - Parallelize tests in CI [#238](https://github.com/datagouv/hydra/pull/238)
 - Refactor analysis logic to remove 5 non necessary queries, using the existing data in the code instead of re-querying it [#227](https://github.com/datagouv/hydra/pull/227)
-- Use a package-manager-agnostic pyproject.toml instead of a Poetry pyproject.toml [#143](https://github.com/datagouv/hydra/pull/143)
+- Use a package-manager-agnostic pyproject.toml instead of a Poetry pyproject.toml [#170](https://github.com/datagouv/hydra/pull/170)
 
 ## 2.0.5 (2024-11-08)
 
