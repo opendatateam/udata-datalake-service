@@ -79,8 +79,7 @@ markers = [
 addopts = "--cov=udata_hydra/ --cov-report term-missing"
 
 [tool.ruff]
-lint = { extend-select = ["I"] }
-# ["I"] is to also sort imports with an isort rule
+lint = { extend-select = ["I"], ignore = ["F401"] } # ["I"] is to also sort imports with an isort rule # TODO: remove ignore F401 later
 line-length = 100
 
 [build-system]
