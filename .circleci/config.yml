@@ -43,7 +43,7 @@ jobs:
           name: Install python dependencies
           command: |
             ./poetry-binary config virtualenvs.in-project true
-            ./poetry-binary install
+            ./poetry-binary install --extras "dev"
       - save_cache:
           key: << pipeline.parameters.cache-prefix >>-{{ arch }}-{{ checksum "poetry.lock" }}
           paths:
