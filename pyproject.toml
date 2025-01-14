@@ -1,47 +1,51 @@
-[tool.poetry]
+[project]
 name = "udata-hydra"
 version = "2.1.1.dev"
 description = "Async crawler and parsing service for data.gouv.fr"
-authors = ["Opendata Team <opendatateam@data.gouv.fr>"]
-license = "MIT"
+authors = [{ name = "Opendata Team", email = "opendatateam@data.gouv.fr" }]
+dependencies = [
+    "aiocontextvars>=0.2.2",
+    "aiohttp>=3.10.3",
+    "asyncpg>=0.29.0",
+    "coloredlogs>=15.0.1",
+    "csv-detective==0.7.3",
+    "dateparser>=1.1.7",
+    "humanfriendly>=10.0",
+    "marshmallow>=3.14.1",
+    "minicli>=0.5.3",
+    "minio>=7.2.8",
+    "progressist>=0.1.0",
+    "pyarrow>=16.1.0",
+    "python-dateutil>=2.8.2",
+    "python-magic>=0.4.25",
+    "python-slugify>=8.0.4",
+    "redis>=4.1.4",
+    "rq>=1.11.1",
+    "sentry-sdk>=2.10.0",
+    "setuptools>=70.3.0",
+    "sqlalchemy>=1.4.46",
+    "str2bool>=1.1",
+    "str2float>=0.0.9",
+    "toml>=0.10.2",
+]
+requires-python = ">=3.11,<3.13"
+license = { text = "MIT" }
 readme = "README.md"
 
-[tool.poetry.dependencies]
-python = "^3.11"
-aiocontextvars = "^0.2.2"
-aiohttp = "^3.10.3"
-asyncpg = "^0.29.0"
-coloredlogs = "^15.0.1"
-csv-detective = "0.7.3"
-dateparser = "^1.1.7"
-humanfriendly = "^10.0"
-marshmallow = "^3.14.1"
-minicli = "^0.5.3"
-minio = "7.2.7"
-pyarrow = "16.1.0"
-python-dateutil = "^2.8.2"
-python-magic = "^0.4.25"
-python-slugify = "^8.0.4"
-progressist = "^0.1.0"
-redis = "^4.1.4"
-rq = "^1.11.1"
-sentry-sdk = "^2.10.0"
-sqlalchemy = "^1.4.46"
-str2float = "^0.0.9"
-str2bool = "^1.1"
-
-[tool.poetry.group.dev.dependencies]
-aiohttp-devtools = "^1.0.post0"
-aioresponses = "^0.7.3"
-bumpx = "^0.3.10"
-gunicorn = "^20.1.0"
-mypy = "^1.11.0"
-nest_asyncio = "^1.5.5"
-pytest = "^8.3.0"
-pytest-asyncio = "^0.18.3"
-pytest-cov = "^5.0.0"
-pytest-mock = "^3.7.0"
-ruff = "^0.5.2"
+[project.optional-dependencies]
+dev = [
+    "aiohttp-devtools>=1.0.post0",
+    "aioresponses>=0.7.3",
+    "bumpx>=0.3.10",
+    "gunicorn>=20.1.0",
+    "mypy>=1.11.0",
+    "nest_asyncio>=1.5.5",
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.18.3",
+    "pytest-cov>=5.0.0",
+    "pytest-mock>=3.7.0",
+    "ruff>=0.5.7",
+]
 
 [tool.mypy]
 [[tool.mypy.overrides]]
@@ -59,6 +63,12 @@ module = [
 ]
 ignore_missing_imports = true
 
+
+[tool.poetry.scripts]
+udata-hydra = "udata_hydra.cli:run"
+udata-hydra-crawl = "udata_hydra.crawl:run"
+udata-hydra-app = "udata_hydra.app:run"
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 markers = [
@@ -73,10 +83,5 @@ lint = { extend-select = ["I"], ignore = ["F401"] } # ["I"] is to also sort impo
 line-length = 100
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
+requires = ["poetry-core>=2.0.0"]
 build-backend = "poetry.core.masonry.api"
-
-[tool.poetry.scripts]
-udata-hydra = "udata_hydra.cli:run"
-udata-hydra-crawl = "udata_hydra.crawl:run"
-udata-hydra-app = "udata_hydra.app:run"
