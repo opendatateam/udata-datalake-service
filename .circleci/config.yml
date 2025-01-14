@@ -34,18 +34,21 @@ jobs:
             - << pipeline.parameters.cache-prefix >>-{{ arch }}-{{ .Environment.BASE_BRANCH }}
             - << pipeline.parameters.cache-prefix >>-{{ arch }}-
       - run:
-          name: Install Poetry 2.0.1
+          name: Install Poetry 2.0.1 locally
           command: |
-            curl -sSL https://install.python-poetry.org | POETRY_VERSION='2.0.1' python3 -
+            python3 -m venv .poetry-venv
+            .poetry-venv/bin/pip install poetry==2.0.1
+            ln -s .poetry-venv/bin/poetry poetry-binary
       - run:
           name: Install python dependencies
           command: |
-            poetry config virtualenvs.in-project true
-            poetry install
+            ./poetry-binary config virtualenvs.in-project true
+            ./poetry-binary install
       - save_cache:
           key: << pipeline.parameters.cache-prefix >>-{{ arch }}-{{ checksum "poetry.lock" }}
           paths:
             - .venv
+            - .poetry-venv
       - persist_to_workspace:
           root: .
           paths:
@@ -62,8 +65,8 @@ jobs:
           # ruff check --select I . : check linting and imports sorting without fixing (to fix, use --fix)
           # ruff format --check . : check code formatting without fixing (to fix, remove --check)
           command: |
-            poetry run ruff check --select I .
-            poetry run ruff format --check .
+            ./poetry-binary run ruff check --select I .
+            ./poetry-binary run ruff format --check .
 
   tests:
     docker:
@@ -90,7 +93,7 @@ jobs:
             echo "$TESTFILES"
             # Run the found tests
             if [ -n "$TESTFILES" ]; then
-              poetry run pytest --junitxml=reports/python/tests.xml -p no:sugar --color=yes $TESTFILES
+              ./poetry-binary run pytest --junitxml=reports/python/tests.xml -p no:sugar --color=yes $TESTFILES
             else
               echo "No tests to run in this split"
               exit 1
@@ -133,8 +136,8 @@ jobs:
           command: |
             RELEASE_VERSION=$(cat version.txt)
             # Set the version in pyproject.toml
-            poetry version $RELEASE_VERSION
-            poetry build
+            ./poetry-binary version $RELEASE_VERSION
+            ./poetry-binary build
       - store_artifacts:
           path: dist
       - persist_to_workspace:
@@ -152,7 +155,7 @@ jobs:
       - run:
           name: Publish on PyPI
           command: |
-            poetry publish --username "${PYPI_USERNAME}" --password "${PYPI_PASSWORD}" --no-interaction
+            ./poetry-binary publish --username "${PYPI_USERNAME}" --password "${PYPI_PASSWORD}" --no-interaction
 
   trigger-gitlab-pipeline:
     docker:
